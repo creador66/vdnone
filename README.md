@@ -1,2 +1,0 @@
-# vdnone
-prebavid
