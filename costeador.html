@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>CRUD con Hojas de Cálculo - Estilo Moderno (Offline/Online)</title>
+  <style>
+    /* Reset y estilos básicos */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; color: #333; }
+    .container { max-width: 1000px; margin: 0 auto; background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    h1 { text-align: center; margin-bottom: 20px; color: #007bff; }
+    h2 { margin-bottom: 10px; border-bottom: 2px solid #eee; padding-bottom: 10px; font-size: 1.5rem; color: #555; }
+    form { margin-bottom: 20px; }
+    form input, form select, form button {
+      padding: 10px; margin: 5px 0; width: 100%;
+      border: 1px solid #ccc; border-radius: 4px; font-size: 1rem;
+    }
+    form button { background: #007bff; color: #fff; border: none; cursor: pointer; }
+    form button:hover { background: #0056b3; }
+    .list-container { list-style: none; padding: 0; }
+    .list-item {
+      background: #fafafa; margin: 10px 0; padding: 15px; border-radius: 6px;
+      display: flex; justify-content: space-between; align-items: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+    .item-details { flex: 1; }
+    .item-actions button, .recipe-actions button {
+      margin-left: 5px; padding: 5px 10px; border: none; border-radius: 4px;
+      cursor: pointer; font-size: 0.9rem;
+    }
+    .item-actions button.edit, .recipe-actions button.edit { background: #28a745; color: #fff; }
+    .item-actions button.delete, .recipe-actions button.delete { background: #dc3545; color: #fff; }
+    .item-actions button.discard { background: #ffc107; color: #fff; }
+    .saved-recipes { list-style: none; padding: 0; }
+    .saved-recipes li {
+      background: #f9f9f9; padding: 15px; margin: 10px 0; border-radius: 6px;
+      display: flex; justify-content: space-between; align-items: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+    .total-cost { font-size: 1.2rem; font-weight: bold; margin-top: 10px; text-align: right; color: #333; }
+    footer { text-align: center; margin-top: 20px; padding: 10px 0; border-top: 1px solid #ccc; font-size: 0.9rem; color: #555; }
+    /* Estilos de pestañas */
+    .tabs { display: flex; margin-bottom: 20px; border-bottom: 2px solid #eee; }
+    .tab-button {
+      background: none; border: none; padding: 10px 20px; cursor: pointer;
+      font-size: 1rem; color: #555; border-bottom: 2px solid transparent;
+      transition: all 0.3s ease;
+    }
+    .tab-button.active { border-bottom: 2px solid #007bff; font-weight: bold; color: #007bff; }
+    .tab-section { display: none; }
+    .tab-section.active { display: block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Gestión de Ingredientes y Recetas</h1>
+    
+    <!-- Pestañas de navegación -->
+    <div class="tabs">
+      <button class="tab-button active" data-tab="storeSection">Ingredientes</button>
+      <button class="tab-button" data-tab="recipesSection">Receta</button>
+    </div>
+    
+    <!-- Sección de Ingredientes -->
+    <section id="storeSection" class="tab-section active">
+      <h2>Ingredientes</h2>
+      <form id="ingredientForm">
+        <input type="text" id="ingredientName" placeholder="Nombre del ingrediente" required>
+        <input type="number" step="any" id="ingredientQuantity" placeholder="Cantidad" required>
+        <select id="ingredientMeasure" required>
+          <option value="">Selecciona medida</option>
+          <option value="l">Litros</option>
+          <option value="ml">Mililitros</option>
+          <option value="kg">Kilogramos</option>
+          <option value="g">Gramos</option>
+          <option value="un">Unidades</option>
+        </select>
+        <input type="number" step="any" id="ingredientPrice" placeholder="Precio" required>
+        <button type="submit" id="ingredientSubmit">Guardar Ingrediente</button>
+      </form>
+      <ul id="ingredientList" class="list-container"></ul>
+    </section>
+    
+    <!-- Sección de Receta -->
+    <section id="recipesSection" class="tab-section">
+      <h2>Receta</h2>
+      <form id="recipeForm">
+        <select id="recipeIngredientSelect">
+          <option value="">Selecciona un ingrediente</option>
+        </select>
+        <select id="recipeUnitSelect"></select>
+        <input type="number" step="any" id="recipePortion" placeholder="Cantidad a usar" required>
+        <button type="submit">Agregar a Receta</button>
+      </form>
+      <ul id="recipeList" class="list-container"></ul>
+      <div class="total-cost" id="totalCost"></div>
+      <form id="saveRecipeForm">
+        <input type="text" id="recipeName" placeholder="Nombre de la receta" required>
+        <input type="number" step="any" id="recipeSalePrice" placeholder="Precio de venta (opcional)">
+        <button type="submit" id="saveRecipeBtn">Guardar Receta</button>
+      </form>
+      <ul id="savedRecipesList" class="saved-recipes"></ul>
+    </section>
+    
+    <footer>Sistema: IAEgo - Canul Alvarez</footer>
+  </div>
+  
+<script>
+  // ----------------------------
+  // Manejo de pestañas (tabs)
+  // ----------------------------
+  const tabButtons = document.querySelectorAll('.tab-button'),
+        tabSections = document.querySelectorAll('.tab-section');
+  
+  tabButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabButtons.forEach(b => b.classList.remove('active'));
+      tabSections.forEach(sec => sec.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.getAttribute('data-tab')).classList.add('active');
+    });
+  });
+  
+  // ----------------------------
+  // URL de Apps Script
+  // ----------------------------
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbz7YMraFaj_Db62A4qxlc6Q4HZP5rjJoXeFwdm_8i-rAhJZYQx_rkGhMTg1yDiiXq4_/exec";
+  
+  // ----------------------------
+  // Wrapper para LS (localStorage)
+  // ----------------------------
+  const LS = {
+    get: key => {
+      try {
+        return JSON.parse(localStorage.getItem(key));
+      } catch (e) { return null; }
+    },
+    set: (key, value) => localStorage.setItem(key, JSON.stringify(value))
+  };
+  
+  // ----------------------------
+  // Operaciones pendientes (Offline)
+  // ----------------------------
+  function addPendingOperation(op) {
+    let pending = LS.get('pendingOperations') || [];
+    pending.push(op);
+    LS.set('pendingOperations', pending);
+    console.warn("Operación pendiente agregada:", op);
+  }
+  
+  function safeGASOperation(operation, payload) {
+    const formData = new FormData();
+    formData.append("operacion", operation);
+    for (const key in payload) {
+      formData.append(key, payload[key]);
+    }
+    return fetch(GAS_URL, {
+        method: "POST",
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (!data.success || data.error) {
+        // Si hay error, se agrega la operación pendiente
+        addPendingOperation({ operation, payload });
+      }
+      return data;
+    })
+    .catch(err => {
+      console.error("Error en la operación " + operation + ":", err);
+      addPendingOperation({ operation, payload });
+      return { success: false, error: "Operación pendiente (sin conexión)" };
+    });
+  }
+  
+  function processPendingOperations() {
+    let pending = LS.get('pendingOperations') || [];
+    if (pending.length === 0) return;
+    console.log("Reintentando operaciones pendientes...");
+    // Se intenta enviar cada operación pendiente
+    pending.forEach((op, index) => {
+      safeGASOperation(op.operation, op.payload)
+        .then(data => {
+          if (data.success && !data.error) {
+            // Si se envió correctamente, se remueve de la cola
+            pending = pending.filter((_, i) => i !== index);
+            LS.set('pendingOperations', pending);
+            console.log("Operación pendiente enviada:", op);
+          }
+        })
+        .catch(err => console.error("Error al procesar operación pendiente:", op, err));
+    });
+  }
+  
+  window.addEventListener('online', processPendingOperations);
+  
+  // ----------------------------
+  // Definición de conversiones de unidades
+  // ----------------------------
+  const conversionRates = {
+    "l": { "l": 1, "ml": 0.001 },
+    "ml": { "ml": 1, "l": 1000 },
+    "kg": { "kg": 1, "g": 0.001 },
+    "g": { "g": 1, "kg": 1000 },
+    "un": { "un": 1 }
+  };
+  
+  // ----------------------------
+  // Variables globales (cargadas desde LS para respuesta rápida)
+  // ----------------------------
+  let ingredients = LS.get('ingredients') || [];
+  let recipeItems = [];
+  let recipes = LS.get('recipes') || [];
+  let editingIndex = null, editingRecipeIndex = null;
+  
+  // ----------------------------
+  // Funciones de actualización de la interfaz
+  // ----------------------------
+  function updateIngredientDisplay() {
+    const ingredientList = document.getElementById('ingredientList');
+    ingredientList.innerHTML = '';
+    const recipeSelect = document.getElementById('recipeIngredientSelect');
+    recipeSelect.innerHTML = '<option value="">Selecciona un ingrediente</option>';
+    ingredients.forEach((ing, index) => {
+      ing.unitCost = ing.price / ing.quantity;
+      const qtyDisplay = ing.quantity ? ing.quantity.toFixed(2) : "0";
+      const priceDisplay = ing.price ? ing.price.toFixed(2) : "0";
+      const unitCostDisplay = ing.unitCost ? ing.unitCost.toFixed(2) : "0";
+      const li = document.createElement('li');
+      li.className = 'list-item';
+      li.innerHTML = `
+        <div class="item-details">
+          <strong>${ing.name}</strong><br>
+          Cantidad: ${qtyDisplay} ${ing.measure}<br>
+          Precio Total: ${priceDisplay} - Precio Unitario: ${unitCostDisplay}
+        </div>
+        <div class="item-actions">
+          <button class="edit" data-index="${index}">Editar</button>
+          <button class="delete" data-index="${index}">Eliminar</button>
+        </div>
+      `;
+      ingredientList.appendChild(li);
+      if (ing.quantity > 0) {
+        const option = document.createElement('option');
+        option.value = index;
+        option.textContent = `${ing.name} (${qtyDisplay} ${ing.measure})`;
+        recipeSelect.appendChild(option);
+      }
+    });
+    LS.set('ingredients', ingredients);
+  }
+  
+  function updateRecipeDisplay() {
+    const recipeList = document.getElementById('recipeList');
+    recipeList.innerHTML = '';
+    let totalCost = 0;
+    recipeItems.forEach((item, i) => {
+      totalCost += item.cost;
+      const li = document.createElement('li');
+      li.className = 'list-item';
+      li.setAttribute('data-index', i);
+      li.innerHTML = `
+        <div class="item-details">
+          <strong>${item.name}</strong><br>
+          Cantidad usada: ${item.portion.toFixed(2)} ${item.unit}<br>
+          Costo: ${item.cost.toFixed(2)}
+        </div>
+        <div class="item-actions">
+          <button class="discard" data-index="${i}">Descartar</button>
+        </div>
+      `;
+      recipeList.appendChild(li);
+    });
+    document.getElementById('totalCost').textContent = `Costo Total: ${totalCost.toFixed(2)}`;
+  }
+  
+  function updateSavedRecipesDisplay() {
+    const savedRecipesList = document.getElementById('savedRecipesList');
+    savedRecipesList.innerHTML = '';
+    recipes.forEach((rec, index) => {
+      let salePriceInfo = '';
+      if(rec.salePrice && rec.salePrice > 0) {
+        let profit = rec.salePrice - rec.totalCost;
+        let margin = ((rec.salePrice - rec.totalCost) / rec.salePrice) * 100;
+        salePriceInfo = `<br>Precio de venta: ${rec.salePrice.toFixed(2)}
+                         <br>Ganancia: ${profit.toFixed(2)}
+                         <br>Margen: ${margin.toFixed(2)}%`;
+      }
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <div class="item-details">
+          <strong>${rec.name}</strong><br>
+          Costo Total: ${rec.totalCost.toFixed(2)} ${salePriceInfo}
+        </div>
+        <div class="recipe-actions">
+          <button class="edit" data-index="${index}">Editar</button>
+          <button class="delete" data-index="${index}">Eliminar</button>
+        </div>
+      `;
+      savedRecipesList.appendChild(li);
+    });
+    LS.set('recipes', recipes);
+  }
+  
+  // ----------------------------
+  // Funciones de integración con GAS (usando safeGASOperation)
+  // ----------------------------
+  function guardarIngredienteGAS(name, quantity, measure, price) {
+    return safeGASOperation("guardarIngredien", {
+      ingredientName: name,
+      ingredientQuantity: quantity,
+      ingredientMeasure: measure,
+      ingredientPrice: price
+    });
+  }
+  
+  function actualizarIngredienteGAS(id, name, quantity, measure, price) {
+    return safeGASOperation("actualizarIngrediente", {
+      ingredientID: id,
+      ingredientName: name,
+      ingredientQuantity: quantity,
+      ingredientMeasure: measure,
+      ingredientPrice: price
+    });
+  }
+  
+  function eliminarIngredienteGAS(id) {
+    return safeGASOperation("eliminarIngrediente", { ingredientID: id });
+  }
+  
+  function guardarRecetaGAS(recipe) {
+    const payload = {
+      recipeName: recipe.name,
+      totalCost: recipe.totalCost,
+      salePrice: recipe.salePrice ? recipe.salePrice : '',
+      items: JSON.stringify(recipe.items)
+    };
+    if(recipe.id) payload.recipeID = recipe.id;
+    return safeGASOperation("guardarReceta", payload);
+  }
+  
+  function eliminarRecetaGAS(recipeID) {
+    return safeGASOperation("eliminarReceta", { recipeID });
+  }
+  
+  // ----------------------------
+  // Sincronización de datos desde GAS
+  // Primero se muestran los datos guardados en LS, luego se actualiza consultando GAS.
+  // ----------------------------
+  function fetchIngredientsFromGAS() {
+    const formData = new FormData();
+    formData.append('operacion', 'obtenerIngredientes');
+    fetch(GAS_URL, { method: 'POST', body: formData })
+      .then(response => response.json())
+      .then(data => {
+        if(data.success) {
+          ingredients = data.ingredients;
+          updateIngredientDisplay();
+        } else {
+          console.error("Error al obtener ingredientes:", data.message || data.error);
+        }
+      })
+      .catch(err => console.error("Error en obtener ingredientes:", err));
+  }
+  
+  function fetchRecipesFromGAS() {
+    const formData = new FormData();
+    formData.append('operacion', 'obtenerRecetas');
+    fetch(GAS_URL, { method: 'POST', body: formData })
+      .then(response => response.json())
+      .then(data => {
+        if(data.success) {
+          recipes = data.recipes;
+          updateSavedRecipesDisplay();
+        } else {
+          console.error("Error al obtener recetas:", data.message || data.error);
+        }
+      })
+      .catch(err => console.error("Error en obtener recetas:", err));
+  }
+  
+  // ----------------------------
+  // Eventos de la interfaz para Ingredientes
+  // ----------------------------
+  document.getElementById('ingredientForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const name = document.getElementById('ingredientName').value.trim(),
+          quantity = parseFloat(document.getElementById('ingredientQuantity').value),
+          measure = document.getElementById('ingredientMeasure').value,
+          price = parseFloat(document.getElementById('ingredientPrice').value);
+    if (!(name && quantity > 0 && measure && price > 0)) {
+      alert('Por favor ingresa datos válidos');
+      return;
+    }
+    
+    if (editingIndex !== null) {
+      // Se actualiza el ingrediente y, además, se recalculan los costos de todas las recetas que lo usan.
+      const ing = ingredients[editingIndex];
+      actualizarIngredienteGAS(ing.id, name, quantity, measure, price)
+        .then(data => {
+          if(data.success) {
+            const newUnitCost = price / quantity;
+            // Actualizamos el ingrediente
+            ingredients[editingIndex] = { id: ing.id, name, quantity, measure, price, unitCost: newUnitCost };
+            
+            // Actualizamos la receta en curso (recipeItems)
+            recipeItems = recipeItems.map(item => {
+              if (item.ingredientIndex == editingIndex) {
+                return { ...item, name, cost: item.baseQuantity * newUnitCost };
+              }
+              return item;
+            });
+            
+            // Actualizamos las recetas guardadas
+            recipes = recipes.map(recipe => {
+              const updatedItems = recipe.items.map(item => {
+                if (item.ingredientIndex == editingIndex) {
+                  return { ...item, name, cost: item.baseQuantity * newUnitCost };
+                }
+                return item;
+              });
+              return { ...recipe, items: updatedItems, totalCost: updatedItems.reduce((sum, i) => sum + i.cost, 0) };
+            });
+            
+            editingIndex = null;
+            document.getElementById('ingredientForm').reset();
+            document.getElementById('ingredientSubmit').textContent = "Guardar Ingrediente";
+            updateIngredientDisplay();
+            updateRecipeDisplay();
+            updateSavedRecipesDisplay();
+          } else {
+            alert("Error: " + (data.message || data.error));
+          }
+        })
+        .catch(err => {
+          console.error("Error al actualizar el ingrediente:", err);
+          alert("Error al actualizar el ingrediente");
+        });
+    } else {
+      // Crear nuevo ingrediente
+      guardarIngredienteGAS(name, quantity, measure, price)
+        .then(data => {
+          if(data.success) {
+            const newIngredient = { id: data.id, name, quantity, measure, price, unitCost: price / quantity };
+            ingredients.push(newIngredient);
+            updateIngredientDisplay();
+            document.getElementById('ingredientForm').reset();
+          } else {
+            alert("Error: " + (data.message || data.error));
+          }
+        })
+        .catch(err => {
+          console.error("Error al guardar el ingrediente:", err);
+          alert("Error al guardar el ingrediente");
+        });
+    }
+  });
+  
+  document.getElementById('ingredientList').addEventListener('click', e => {
+    const index = e.target.getAttribute('data-index');
+    if (e.target.classList.contains('edit')) {
+      const ing = ingredients[index];
+      document.getElementById('ingredientName').value = ing.name;
+      document.getElementById('ingredientQuantity').value = ing.quantity;
+      document.getElementById('ingredientMeasure').value = ing.measure;
+      document.getElementById('ingredientPrice').value = ing.price;
+      editingIndex = index;
+      document.getElementById('ingredientSubmit').textContent = "Actualizar Ingrediente";
+    }
+    if (e.target.classList.contains('delete') && confirm('¿Estás seguro de eliminar este ingrediente?')) {
+      const ing = ingredients[index];
+      eliminarIngredienteGAS(ing.id)
+        .then(data => {
+          if(data.success) {
+            ingredients.splice(index, 1);
+            updateIngredientDisplay();
+          } else {
+            alert("Error al eliminar el ingrediente: " + (data.message || data.error));
+          }
+        })
+        .catch(err => {
+          console.error("Error al eliminar el ingrediente:", err);
+          alert("Error al eliminar el ingrediente");
+        });
+    }
+  });
+  
+  // ----------------------------
+  // Eventos de la interfaz para Recetas
+  // ----------------------------
+  document.getElementById('recipeIngredientSelect').addEventListener('change', e => {
+    const ingIndex = e.target.value;
+    const unitSelect = document.getElementById('recipeUnitSelect');
+    unitSelect.innerHTML = '';
+    if (ingIndex === "") return;
+    const selectedIng = ingredients[ingIndex];
+    const options = conversionRates[selectedIng.measure] 
+                      ? Object.keys(conversionRates[selectedIng.measure]) 
+                      : [selectedIng.measure];
+    options.forEach(opt => {
+      const option = document.createElement('option');
+      option.value = opt;
+      option.textContent = opt;
+      unitSelect.appendChild(option);
+    });
+  });
+  
+  document.getElementById('recipeForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const ingIndex = document.getElementById('recipeIngredientSelect').value,
+          recipeUnit = document.getElementById('recipeUnitSelect').value,
+          portion = parseFloat(document.getElementById('recipePortion').value);
+    if (ingIndex === "" || isNaN(portion) || portion <= 0 || recipeUnit === "") {
+      alert('Selecciona un ingrediente, unidad y cantidad válida');
+      return;
+    }
+    let selectedIng = ingredients[ingIndex];
+    const conversionFactor = conversionRates[selectedIng.measure] 
+                                ? conversionRates[selectedIng.measure][recipeUnit] 
+                                : 1;
+    const convertedPortion = portion * conversionFactor;
+    if (selectedIng.quantity >= convertedPortion) {
+      recipeItems.push({
+        ingredientIndex: ingIndex,
+        name: selectedIng.name,
+        portion,
+        unit: recipeUnit,
+        cost: convertedPortion * selectedIng.unitCost,
+        baseQuantity: convertedPortion
+      });
+      updateIngredientDisplay();
+      updateRecipeDisplay();
+    } else {
+      alert('No hay suficiente cantidad disponible');
+    }
+    document.getElementById('recipeForm').reset();
+  });
+  
+  document.getElementById('recipeList').addEventListener('click', e => {
+    if (e.target.classList.contains('discard')) {
+      const index = e.target.getAttribute('data-index');
+      recipeItems.splice(index, 1);
+      updateRecipeDisplay();
+    }
+  });
+  
+  document.getElementById('saveRecipeForm').addEventListener('submit', e => {
+    e.preventDefault();
+    if (recipeItems.length === 0) {
+      alert('La receta no tiene ingredientes agregados.');
+      return;
+    }
+    const recName = document.getElementById('recipeName').value.trim();
+    if (!recName) {
+      alert('Ingresa un nombre para la receta.');
+      return;
+    }
+    const totalCost = recipeItems.reduce((sum, item) => sum + item.cost, 0);
+    const salePriceInput = document.getElementById('recipeSalePrice').value.trim();
+    const salePrice = salePriceInput ? parseFloat(salePriceInput) : null;
+    const recipe = { name: recName, items: recipeItems, totalCost, salePrice };
+    if (editingRecipeIndex !== null) {
+      recipe.id = recipes[editingRecipeIndex].id;
+    }
+    guardarRecetaGAS(recipe)
+      .then(data => {
+        if(data.success) {
+          if(recipe.id) {
+            recipes[editingRecipeIndex] = recipe;
+          } else {
+            recipe.id = data.recipeID;
+            recipes.push(recipe);
+          }
+          updateSavedRecipesDisplay();
+          recipeItems = [];
+          updateRecipeDisplay();
+          document.getElementById('saveRecipeForm').reset();
+          editingRecipeIndex = null;
+          document.getElementById('saveRecipeBtn').textContent = "Guardar Receta";
+        } else {
+          alert("Error al guardar la receta: " + (data.message || data.error));
+        }
+      })
+      .catch(err => {
+        alert("Error al guardar la receta");
+        console.error(err);
+      });
+  });
+  
+  document.getElementById('savedRecipesList').addEventListener('click', e => {
+    const index = e.target.getAttribute('data-index');
+    if (e.target.classList.contains('edit')) {
+      const rec = recipes[index];
+      recipeItems = [...rec.items];
+      updateRecipeDisplay();
+      document.getElementById('recipeName').value = rec.name;
+      document.getElementById('recipeSalePrice').value = rec.salePrice ? rec.salePrice : '';
+      editingRecipeIndex = index;
+      document.getElementById('saveRecipeBtn').textContent = "Actualizar Receta";
+    }
+    if (e.target.classList.contains('delete')) {
+      const rec = recipes[index];
+      if (confirm('¿Estás seguro de eliminar esta receta?')) {
+        eliminarRecetaGAS(rec.id)
+          .then(data => {
+            if(data.success) {
+              recipes.splice(index, 1);
+              updateSavedRecipesDisplay();
+            } else {
+              alert("Error al eliminar la receta: " + (data.message || data.error));
+            }
+          })
+          .catch(err => {
+            alert("Error al eliminar la receta");
+            console.error(err);
+          });
+      }
+    }
+  });
+  
+  // ----------------------------
+  // Carga inicial: se muestran los datos guardados en LS y luego se sincroniza con GAS.
+  // ----------------------------
+  updateIngredientDisplay();
+  updateRecipeDisplay();
+  updateSavedRecipesDisplay();
+  fetchIngredientsFromGAS();
+  fetchRecipesFromGAS();
+</script>
+
+</body>
+</html>
